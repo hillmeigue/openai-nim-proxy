@@ -3,6 +3,7 @@ import axios from "axios";
 
 const NIM_API_BASE = process.env.NIM_API_BASE || "https://integrate.api.nvidia.com/v1";
 const NIM_API_KEY = process.env.NIM_API_KEY;
+
 const SHOW_REASONING = false;
 const ENABLE_THINKING_MODE = false;
 
@@ -17,27 +18,29 @@ const MODEL_MAPPING = {
   "deepseek-3.1-terminus": "deepseek-ai/deepseek-v3.1-terminus"
 };
 
-// ---- Main handler for all routes ----
+// ---- Main handler for all API routes ----
 export default async function handler(req, res) {
-  const { method, url } = req;
+  const { method } = req;
+  const url = req.url || "";
+
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   if (method === "OPTIONS") return res.status(200).end();
 
-  // --- Health check ---
-  if (url === "/api/health") {
+  // ---- Health Check ----
+  if (url.endsWith("/api/health")) {
     return res.json({
       status: "ok",
-      service: "OpenAI to NVIDIA NIM Proxy",
+      service: "OpenAI → NVIDIA NIM Proxy",
       reasoning_display: SHOW_REASONING,
       thinking_mode: ENABLE_THINKING_MODE
     });
   }
 
-  // --- List models ---
-  if (url === "/api/v1/models") {
-    const models = Object.keys(MODEL_MAPPING).map(m => ({
-      id: m,
+  // ---- List Models ----
+  if (url.endsWith("/api/v1/models")) {
+    const models = Object.keys(MODEL_MAPPING).map((id) => ({
+      id,
       object: "model",
       created: Date.now(),
       owned_by: "nvidia-nim-proxy"
@@ -45,12 +48,13 @@ export default async function handler(req, res) {
     return res.json({ object: "list", data: models });
   }
 
-  // --- Chat completions ---
-  if (url === "/api/v1/chat/completions" && method === "POST") {
+  // ---- Chat Completions ----
+  if (url.endsWith("/api/v1/chat/completions") && method === "POST") {
     try {
-      const { model, messages, temperature, max_tokens, stream } = req.body;
+      const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+      const { model, messages, temperature, max_tokens } = body;
 
-      let nimModel = MODEL_MAPPING[model] || "meta/llama-3.1-8b-instruct";
+      const nimModel = MODEL_MAPPING[model] || "meta/llama-3.1-8b-instruct";
       const nimRequest = {
         model: nimModel,
         messages,
@@ -58,8 +62,7 @@ export default async function handler(req, res) {
         max_tokens: max_tokens || 8192,
         extra_body: ENABLE_THINKING_MODE
           ? { chat_template_kwargs: { thinking: true } }
-          : undefined,
-        stream: stream || false
+          : undefined
       };
 
       const response = await axios.post(`${NIM_API_BASE}/chat/completions`, nimRequest, {
@@ -74,7 +77,7 @@ export default async function handler(req, res) {
         object: "chat.completion",
         created: Math.floor(Date.now() / 1000),
         model,
-        choices: response.data.choices.map(choice => {
+        choices: response.data.choices.map((choice) => {
           let content = choice.message?.content || "";
           if (SHOW_REASONING && choice.message?.reasoning_content) {
             content = `<think>\n${choice.message.reasoning_content}\n</think>\n\n${content}`;
@@ -85,15 +88,19 @@ export default async function handler(req, res) {
             finish_reason: choice.finish_reason
           };
         }),
-        usage: response.data.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }
+        usage: response.data.usage || {
+          prompt_tokens: 0,
+          completion_tokens: 0,
+          total_tokens: 0
+        }
       };
 
-      return res.json(openaiResponse);
+      return res.status(200).json(openaiResponse);
     } catch (err) {
       console.error("Proxy error:", err.message);
       return res.status(err.response?.status || 500).json({
         error: {
-          message: err.message,
+          message: err.response?.data?.error?.message || err.message,
           type: "invalid_request_error",
           code: err.response?.status || 500
         }
@@ -101,7 +108,7 @@ export default async function handler(req, res) {
     }
   }
 
-  // --- Fallback for unknown endpoints ---
+  // ---- Fallback for unknown endpoints ----
   return res.status(404).json({
     error: {
       message: `Endpoint ${url} not found`,
