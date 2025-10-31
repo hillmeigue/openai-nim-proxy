@@ -1,5 +1,6 @@
 // api/server.js — OpenAI to NVIDIA NIM API Proxy for Vercel Serverless
 import axios from "axios";
+import { parse } from "url";
 
 const NIM_API_BASE = process.env.NIM_API_BASE || "https://integrate.api.nvidia.com/v1";
 const NIM_API_KEY = process.env.NIM_API_KEY;
@@ -21,14 +22,14 @@ const MODEL_MAPPING = {
 // ---- Main handler for all API routes ----
 export default async function handler(req, res) {
   const { method } = req;
-  const url = req.url || "";
+  const { pathname } = parse(req.url || "", true);
 
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   if (method === "OPTIONS") return res.status(200).end();
 
   // ---- Health Check ----
-  if (url.endsWith("/api/health")) {
+  if (pathname === "/api/health") {
     return res.json({
       status: "ok",
       service: "OpenAI → NVIDIA NIM Proxy",
@@ -38,7 +39,7 @@ export default async function handler(req, res) {
   }
 
   // ---- List Models ----
-  if (url.endsWith("/api/v1/models")) {
+  if (pathname === "/api/v1/models") {
     const models = Object.keys(MODEL_MAPPING).map((id) => ({
       id,
       object: "model",
@@ -49,7 +50,7 @@ export default async function handler(req, res) {
   }
 
   // ---- Chat Completions ----
-  if (url.endsWith("/api/v1/chat/completions") && method === "POST") {
+  if (pathname === "/api/v1/chat/completions" && method === "POST") {
     try {
       const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
       const { model, messages, temperature, max_tokens } = body;
@@ -111,7 +112,7 @@ export default async function handler(req, res) {
   // ---- Fallback for unknown endpoints ----
   return res.status(404).json({
     error: {
-      message: `Endpoint ${url} not found`,
+      message: `Endpoint ${pathname} not found`,
       type: "invalid_request_error",
       code: 404
     }
