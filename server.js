@@ -34,8 +34,6 @@ const MODEL_MAPPING = {
   'deepseek-v4-flash': 'deepseek-ai/deepseek-v4-flash'
 };
 
-};
-
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({
