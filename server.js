@@ -29,7 +29,11 @@ const MODEL_MAPPING = {
   'deepseek-v3.1': 'deepseek-ai/deepseek-v3.1',
   'deepseek-3.1-terminus': 'deepseek-ai/deepseek-v3.1-terminus',
   'kimi-k2-thinking': 'moonshotai/kimi-k2-thinking',
-  'kimi-k2-instruct-0905': 'moonshotai/kimi-k2-instruct-0905'
+  'kimi-k2-instruct-0905': 'moonshotai/kimi-k2-instruct-0905',
+  'deepseek-v4-pro': 'deepseek-ai/deepseek-v4-pro',
+  'deepseek-v4-flash': 'deepseek-ai/deepseek-v4-flash'
+};
+
 };
 
 // Health check endpoint
